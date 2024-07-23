@@ -1,24 +1,23 @@
-
 struct PicoDevice {
     var defaultLED: LED
-    var redLed: LED
-    var blueLed: LED
-    var greenLed: LED
+    var redLed: LED?
+    var blueLed: LED?
+    var greenLed: LED?
 
-    var button: Button
+    var button: Button?
 
     var lcd: LCD?
 
     var allOn: Bool = false {
         didSet {
             defaultLED.isOn = allOn
-            redLed.isOn = allOn
-            blueLed.isOn = allOn
-            greenLed.isOn = allOn
+            redLed?.isOn = allOn
+            blueLed?.isOn = allOn
+            greenLed?.isOn = allOn
         }
     }
 
-    init(defaultLED: LED, redLed: LED, blueLed: LED, greenLed: LED, button: Button, lcd: LCD?) {
+    init(defaultLED: LED, redLed: LED?, blueLed: LED?, greenLed: LED?, button: Button?, lcd: LCD?) {
         self.defaultLED = defaultLED
         self.redLed = redLed
         self.blueLed = blueLed
@@ -62,10 +61,10 @@ struct Button {
 
 struct LCD {
     let addr: UInt8 = 0x27
-    var i2c0: UnsafeMutablePointer<i2c_inst_t> = get_pointer()
+    var i2c0Pointer: UnsafeMutablePointer<i2c_inst_t> = get_pointer()
 
     init() {
-        i2c_init(i2c0, 100 * 1000)
+        i2c_init(i2c0Pointer, 100 * 1000)
         gpio_set_function(UInt32(4), GPIO_FUNC_I2C) // SDA
         gpio_set_function(UInt32(5), GPIO_FUNC_I2C) // SCL
         gpio_pull_up(4) // SDA
@@ -87,16 +86,36 @@ struct LCD {
     func displayString(_ value: StaticString) {
         let maxCharPerLine = 16
 
-        value.withUTF8Buffer { b in
-            var i = 0
-            var l = 0
-            for ch in b {
-                i += 1
-                if i > maxCharPerLine, l == 0 {
+        value.withUTF8Buffer { buffer in
+            var idx = 0
+            var line = 0
+            for char in buffer {
+                idx += 1
+                // break line
+                if idx > maxCharPerLine, line == 0 {
                     setCursor(line: 1, pos: 0)
-                    l += 1
+                    line += 1
                 }
-                send(ch, mode: .character)
+                send(char, mode: .character)
+            }
+        }
+    }
+
+    func displayStringWithStreaming(_ value: StaticString) {
+        let maxCharPerLine = 16
+
+        value.withUTF8Buffer { buffer in
+            var idx = 0
+            var line = 0
+            for char in buffer {
+                idx += 1
+                // break line
+                if idx > maxCharPerLine, line == 0 {
+                    setCursor(line: 1, pos: 0)
+                    line += 1
+                }
+                send(char, mode: .character)
+                sleep_ms(200)
             }
         }
     }
@@ -108,7 +127,7 @@ struct LCD {
         send(0x02, mode: .command)
 
         send(Command.entryModeSet | EntryMode.left, mode: .command)
-        send(Command.functionSet | FunctionSet.LCD_2LINE, mode: .command)
+        send(Command.functionSet | FunctionSet.lcd2Line, mode: .command)
         send(Command.displayControl | CursorContol.displayON, mode: .command)
         send(Command.returnHome, mode: .command)
         clear()
@@ -116,16 +135,16 @@ struct LCD {
 
     private func toggleEnable(value: UInt8) {
         sleep_us(600)
-        write(value: UInt8(value | 0x04))
+        write(value: UInt8(value | Flag.enable))
         sleep_us(600)
-        write(value: UInt8(value & ~0x04))
+        write(value: UInt8(value & ~Flag.enable))
         sleep_us(600)
     }
 
     private func write(value: UInt8) {
-        var v = value
-        _ = withUnsafeMutablePointer(to: &v) { p in
-            _ = i2c_write_blocking(i2c0, addr, p, 1, false)
+        var copiedValue = value
+        withUnsafeMutablePointer(to: &copiedValue) { pointer in
+            _ = i2c_write_blocking(i2c0Pointer, addr, pointer, 1, false)
         }
     }
 
@@ -138,7 +157,6 @@ struct LCD {
         write(value: low)
         toggleEnable(value: low)
     }
-
 
     enum Mode: UInt8 {
         case command = 0
@@ -173,9 +191,9 @@ struct LCD {
     }
 
     enum FunctionSet {
-        static let LCD_5x10DOTS: UInt8 = 0x04
-        static let LCD_2LINE: UInt8 = 0x08
-        static let LCD_8BITMODE: UInt8 = 0x10
+        static let lcd5x10Dots: UInt8 = 0x04
+        static let lcd2Line: UInt8 = 0x08
+        static let lcd8BitMode: UInt8 = 0x10
     }
 
     enum Backlight {
