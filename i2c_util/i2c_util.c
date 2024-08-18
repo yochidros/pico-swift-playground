@@ -5,3 +5,4 @@
 i2c_inst_t* get_pointer(void) {
     return i2c0;
 }
+

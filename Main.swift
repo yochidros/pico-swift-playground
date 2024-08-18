@@ -12,21 +12,29 @@ struct Main {
             redLed: LED(pin: UInt32(22)),
             blueLed: LED(pin: UInt32(16)),
             greenLed: LED(pin: UInt32(18)),
-            button: Button(pin: UInt32(13)),
+            button: nil,
             lcd: LCD()
         )
 
+        // demoDefaultLED()
+
         while true {
-            // demoDefaultLED(&device)
             // demoLEDs(&device)
-            // demoLEDsWithButton(&device)
             demoFinal(&device)
         }
     }
 
-    static func demoDefaultLED(_ device: inout PicoDevice) {
-        device.defaultLED.isOn.toggle()
-        sleep_ms(1000)
+    static func demoDefaultLED() {
+        let pin = UInt32(PICO_DEFAULT_LED_PIN)
+        gpio_init(pin)
+        gpio_set_dir(pin, true)
+
+        while true {
+            gpio_put(pin, true)
+            sleep_ms(1000)
+            gpio_put(pin, false)
+            sleep_ms(1000)
+        }
     }
 
     static func demoLEDs(_ device: inout PicoDevice) {
@@ -59,7 +67,7 @@ struct Main {
 
         sleep_ms(2000)
         device.lcd?.clear()
-        device.lcd?.displayString("Hello World! from Swift Embedded")
+        device.lcd?.displayString("Hello World! from Embedded Swift")
         device.redLed?.isOn = true
         sleep_ms(1000)
         device.greenLed?.isOn = true
@@ -68,17 +76,13 @@ struct Main {
         sleep_ms(2000)
 
         device.lcd?.clear()
-        device.blueLed?.isOn = false
+        device.allOn = false
         device.lcd?.displayStringWithStreaming("Thank you for Listening!!")
-        device.allOn = true
-        sleep_ms(1000)
-        device.allOn = false
-        sleep_ms(1000)
-        device.allOn = true
-        sleep_ms(1000)
-        device.allOn = false
-        sleep_ms(1000)
-        device.allOn = true
+        for _ in 0 ..< 5 {
+            device.allOn.toggle()
+            sleep_ms(1000)
+        }
+
         sleep_ms(2000)
     }
 }
